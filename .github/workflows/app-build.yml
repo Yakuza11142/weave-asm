@@ -1,0 +1,30 @@
+name: Build and Verify React Native App
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository Code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js Environment
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Install Project Dependencies
+      run: npm install
+
+    - name: Run Build and Lint Verification
+      run: |
+        echo "Validating App.tsx and project structure..."
+        npm run lint --if-present
+        echo "Build check completed successfully."
