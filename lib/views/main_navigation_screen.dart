@@ -39,7 +39,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         onTap: (index) => setState(() => _currentIndex = index),
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home_rounded), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.auto_awesome_motion_rounded), label: 'Infinite Feed'),
+          BottomNavigationBarItem(icon: Icon(Icons.auto_awesome_motion_rounded), label: '8K Vector Feed'),
           BottomNavigationBarItem(icon: Icon(Icons.chat_bubble_rounded), label: 'AI Tutor'),
           BottomNavigationBarItem(icon: Icon(Icons.settings_rounded), label: 'Settings'),
         ],
