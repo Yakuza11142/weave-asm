@@ -1,4 +1,4 @@
-name: Mind Spark Universal CI/CD
+name: Mind Spark 
 
 on:
   push:
