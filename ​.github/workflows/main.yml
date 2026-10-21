@@ -1,0 +1,51 @@
+name: Mind Spark Universal CI/CD
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java Development Kit (JDK 17)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Set up Flutter SDK
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.x'
+          channel: 'stable'
+          cache: true
+
+      - name: Accept Android SDK Licenses
+        run: yes | flutter doctor --android-licenses || true
+
+      - name: Generate Native Android Scaffolding
+        run: flutter create . --platforms=android
+
+      - name: Install Project Dependencies
+        run: flutter pub get
+
+      - name: Verify Root Asset Placement
+        run: |
+          if [ -f "icon_launcher.png" ]; then
+            echo "Root asset icon_launcher.png verified."
+          else
+            echo "Warning: icon_launcher.png not found in root path."
+          fi
+
+      - name: Run Code Analysis
+        run: flutter analyze --no-fatal-infos
+
+      - name: Build Android Release APK
+        run: flutter build apk --release
