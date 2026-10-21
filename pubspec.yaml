@@ -1,5 +1,5 @@
 name: mind_spark_elite
-description: "AI TUTOR."
+description: "An advanced offline and hybrid educational platform with infinite vector media, code simulation, and secure multi-platform integration."
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -21,3 +21,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - icon_launcher.png
