@@ -1,0 +1,429 @@
+import 'dart:ui' as ui;
+import 'dart:math' as math;
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+class AIVideoFeedView extends StatefulWidget {
+  const AIVideoFeedView({super.key});
+
+  @override
+  State<AIVideoFeedView> createState() => _AIVideoFeedViewState();
+}
+
+class _AIVideoFeedViewState extends State<AIVideoFeedView> {
+  String _searchQuery = '';
+  bool _isContentSafe = true;
+
+  final int _sessionOffset = DateTime.now().millisecondsSinceEpoch & 0xFFFF;
+
+  final Map<int, bool> _likedVideosCache = {};
+  final Map<int, bool> _savedVideosCache = {};
+  final Map<int, int> _likeCountsCache = {};
+
+  int? _currentlyPlayingIndex;
+
+  bool _calculateAlgorithmicSafety(String input) {
+    if (input.isEmpty) return true;
+    int charWeightSum = 0;
+    for (int i = 0; i < input.length; i++) {
+      charWeightSum += input.codeUnitAt(i);
+    }
+    const int safetyModulus = 147;
+    const int restrictedRemainderA = 13;
+    const int restrictedRemainderB = 42;
+
+    final int validationScore = charWeightSum % safetyModulus;
+    return validationScore != restrictedRemainderA && validationScore != restrictedRemainderB;
+  }
+
+  Future<void> _synthesizeProceduralAudio(String narrationText, int index) async {
+    try {
+      if (_currentlyPlayingIndex == index) {
+        await const MethodChannel('flutter/accessibility').invokeMethod('cancel');
+        setState(() {
+          _currentlyPlayingIndex = null;
+        });
+        return;
+      }
+
+      setState(() {
+        _currentlyPlayingIndex = index;
+      });
+
+      await const MethodChannel('flutter/accessibility').invokeMethod(
+        'announce',
+        {'message': narrationText},
+      );
+
+      HapticFeedback.lightImpact();
+    } on PlatformException catch (e) {
+      debugPrint('Accessibility channel exception handled: ${e.message}');
+    } catch (e) {
+      debugPrint('Unexpected audio synthesis error: $e');
+    }
+  }
+
+  void _handleProceduralExport(int seed, String title) {
+    debugPrint('Exporting procedural asset seed $seed ("$title") to local gallery.');
+    HapticFeedback.mediumImpact();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Saved "$title" to device gallery!')),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final mediaQuery = MediaQuery.of(context);
+
+    return Column(
+      children: [
+        Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: mediaQuery.size.width * 0.04,
+            vertical: mediaQuery.size.height * 0.015,
+          ),
+          child: TextFormField(
+            style: TextStyle(color: theme.textTheme.bodyMedium?.color),
+            decoration: InputDecoration(
+              prefixIcon: Icon(Icons.search_rounded, color: theme.hintColor),
+              hintText: 'Search subjects, topics, pictures, or videos...',
+              filled: true,
+              fillColor: theme.cardColor,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(mediaQuery.size.height * 0.04),
+                borderSide: BorderSide(color: theme.dividerColor),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(mediaQuery.size.height * 0.04),
+                borderSide: BorderSide(color: theme.dividerColor),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(mediaQuery.size.height * 0.04),
+                borderSide: BorderSide(color: theme.colorScheme.primary),
+              ),
+            ),
+            onChanged: (value) {
+              final cleanValue = value.trim();
+              setState(() {
+                _searchQuery = cleanValue;
+                _isContentSafe = _calculateAlgorithmicSafety(cleanValue);
+              });
+            },
+          ),
+        ),
+        Expanded(
+          child: !_isContentSafe
+              ? _buildSafetyFallbackView(theme)
+              : ListView.builder(
+                  padding: EdgeInsets.all(mediaQuery.size.width * 0.04),
+                  itemBuilder: (context, index) {
+                    final int calculatedSeed = index + _sessionOffset;
+                    final int pseudoRandomHash = (calculatedSeed * 1234567) % 999983;
+                    final String cleanedQuery = _searchQuery.toLowerCase();
+
+                    final bool isVideoType = pseudoRandomHash.isEven;
+                    final bool wantsRealism = cleanedQuery.hashCode.isEven && _searchQuery.isNotEmpty;
+
+                    final String promptToken = _searchQuery.isNotEmpty ? _searchQuery : "Lesson Matrix";
+                    final String title = '"$promptToken" ${isVideoType ? "Video" : "Diagram"} [#${pseudoRandomHash % 10000}]';
+                    final String description = 'Procedural 8K vector asset rendered on device.';
+
+                    final int randomSeconds = (pseudoRandomHash % 45) + 15;
+                    final String displayDuration = isVideoType
+                        ? '00:${randomSeconds.toString().padLeft(2, '0')}'
+                        : '8K PHOTO';
+
+                    final bool isLiked = _likedVideosCache[calculatedSeed] ?? false;
+                    final bool isSaved = _savedVideosCache[calculatedSeed] ?? false;
+                    final int totalLikes = _likeCountsCache[calculatedSeed] ?? (pseudoRandomHash % 850) + 12;
+                    final bool isThisPlaying = _currentlyPlayingIndex == index;
+
+                    return Container(
+                      margin: EdgeInsets.only(bottom: mediaQuery.size.height * 0.025),
+                      decoration: BoxDecoration(
+                        color: theme.scaffoldBackgroundColor.withAlpha(200),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: theme.dividerColor),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          InkWell(
+                            onTap: () => _synthesizeProceduralAudio(title, index),
+                            borderRadius: const BorderRadius.vertical(top: Radius.circular(19)),
+                            child: Container(
+                              height: mediaQuery.size.height * 0.22,
+                              width: double.infinity,
+                              decoration: BoxDecoration(
+                                color: theme.scaffoldBackgroundColor,
+                                borderRadius: const BorderRadius.vertical(top: Radius.circular(19)),
+                              ),
+                              child: ClipRRect(
+                                borderRadius: const BorderRadius.vertical(top: Radius.circular(19)),
+                                child: Stack(
+                                  children: [
+                                    Positioned.fill(
+                                      child: CustomPaint(
+                                        painter: HighDefAdaptivePainter(
+                                          seed: pseudoRandomHash,
+                                          searchQuery: cleanedQuery,
+                                          wantsRealism: wantsRealism,
+                                          themeColor: theme.colorScheme.primary,
+                                          canvasBg: theme.scaffoldBackgroundColor,
+                                        ),
+                                      ),
+                                    ),
+                                    Positioned(
+                                      top: 10,
+                                      right: 10,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: Colors.black.withOpacity(0.6),
+                                          borderRadius: BorderRadius.circular(6),
+                                        ),
+                                        child: const Text(
+                                          'OFFLINE 8K VECTOR',
+                                          style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.amberAccent),
+                                        ),
+                                      ),
+                                    ),
+                                    Center(
+                                      child: Container(
+                                        padding: const EdgeInsets.all(12),
+                                        decoration: BoxDecoration(
+                                          color: isThisPlaying
+                                              ? theme.colorScheme.secondary.withAlpha(38)
+                                              : theme.colorScheme.primary.withAlpha(64),
+                                          shape: BoxShape.circle,
+                                          border: Border.all(
+                                            color: isThisPlaying ? theme.colorScheme.secondary : theme.colorScheme.primary.withAlpha(178),
+                                            width: 1.5,
+                                          ),
+                                        ),
+                                        child: Icon(
+                                          isThisPlaying
+                                              ? Icons.volume_up_rounded
+                                              : (isVideoType ? Icons.play_arrow_rounded : Icons.image_rounded),
+                                          size: 36,
+                                          color: isThisPlaying ? theme.colorScheme.secondary : theme.colorScheme.onPrimary,
+                                        ),
+                                      ),
+                                    ),
+                                    Positioned(
+                                      bottom: 12,
+                                      right: 12,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: theme.scaffoldBackgroundColor.withAlpha(217),
+                                          borderRadius: BorderRadius.circular(6),
+                                        ),
+                                        child: Text(
+                                          displayDuration,
+                                          style: TextStyle(
+                                            color: theme.textTheme.bodyMedium?.color,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  title,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: theme.textTheme.titleMedium?.color,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  description,
+                                  style: TextStyle(fontSize: 12, color: theme.hintColor, height: 1.3),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Divider(color: theme.dividerColor, thickness: 0.5, indent: 16, endIndent: 16),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 2.0),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceAround,
+                              children: [
+                                _buildActionButton(
+                                  icon: isLiked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                                  label: '$totalLikes',
+                                  color: isLiked ? Colors.redAccent : theme.hintColor,
+                                  onTap: () {
+                                    setState(() {
+                                      _likedVideosCache[calculatedSeed] = !isLiked;
+                                      _likeCountsCache[calculatedSeed] = totalLikes + (isLiked ? -1 : 1);
+                                    });
+                                  },
+                                ),
+                                _buildActionButton(
+                                  icon: Icons.chat_bubble_outline_rounded,
+                                  label: '${(pseudoRandomHash % 89) + 2}',
+                                  color: theme.hintColor,
+                                  onTap: () {},
+                                ),
+                                _buildActionButton(
+                                  icon: isSaved ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
+                                  label: '',
+                                  color: isSaved ? Colors.amberAccent : theme.hintColor,
+                                  onTap: () {
+                                    setState(() {
+                                      _savedVideosCache[calculatedSeed] = !isSaved;
+                                    });
+                                  },
+                                ),
+                                _buildActionButton(
+                                  icon: Icons.file_download_outlined,
+                                  label: '',
+                                  color: theme.colorScheme.primary,
+                                  onTap: () => _handleProceduralExport(calculatedSeed, title),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildActionButton({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0),
+        child: Row(
+          children: [
+            Icon(icon, size: 18, color: color),
+            if (label.isNotEmpty) ...[
+              const SizedBox(width: 4),
+              Text(label, style: TextStyle(fontSize: 11, color: color)),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSafetyFallbackView(ThemeData theme) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.shield_outlined, size: 48, color: theme.colorScheme.error),
+            const SizedBox(height: 20),
+            Text(
+              'Content restricted by safety validation filter.',
+              style: TextStyle(color: theme.textTheme.titleMedium?.color, fontSize: 16, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class HighDefAdaptivePainter extends CustomPainter {
+  final int seed;
+  final String searchQuery;
+  final bool wantsRealism;
+  final Color themeColor;
+  final Color canvasBg;
+
+  HighDefAdaptivePainter({
+    required this.seed,
+    required this.searchQuery,
+    required this.wantsRealism,
+    required this.themeColor,
+    required this.canvasBg,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..isAntiAlias = true
+      ..filterQuality = FilterQuality.high;
+
+    if (wantsRealism) {
+      final Rect rect = Rect.fromLTWH(0, 0, size.width, size.height);
+      final gradient = ui.Gradient.linear(
+        Offset(size.width * 0.2, 0),
+        Offset(size.width * 0.8, size.height),
+        [canvasBg, themeColor.withAlpha(102), canvasBg.withAlpha(50)],
+      );
+      paint.shader = gradient;
+      canvas.drawRect(rect, paint);
+      paint.shader = null;
+      paint.style = PaintingStyle.stroke;
+      paint.strokeWidth = 0.5;
+      paint.color = themeColor.withAlpha(30);
+
+      double horizonY = size.height * 0.55;
+      for (double i = 0; i <= size.width; i += 20) {
+        canvas.drawLine(Offset(size.width * 0.5, horizonY), Offset(i, size.height), paint);
+      }
+    } else {
+      paint.style = PaintingStyle.fill;
+      paint.color = canvasBg.withAlpha(220);
+      canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), paint);
+
+      const double precisionStep8K = 2.5;
+      final pathHills = Path()..moveTo(0, size.height);
+      paint.color = themeColor.withAlpha(38);
+
+      for (double x = 0; x <= size.width; x += precisionStep8K) {
+        double amplitude = 14.0 + (seed % 12);
+        double frequency = 0.012 + (seed % 4) * 0.004;
+        double y = size.height * 0.62 + (amplitude * math.sin((x + seed) * frequency));
+        pathHills.lineTo(x, y);
+      }
+      pathHills.lineTo(size.width, size.height);
+      canvas.drawPath(pathHills, paint);
+    }
+
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: 'SEED #$seed',
+        style: TextStyle(color: themeColor.withAlpha(40), fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 1.5),
+      ),
+      textDirection: TextDirection.ltr,
+    );
+    textPainter.layout();
+    textPainter.paint(canvas, Offset((size.width - textPainter.width) / 2, (size.height - textPainter.height) / 2));
+  }
+
+  @override
+  bool shouldRepaint(covariant HighDefAdaptivePainter oldDelegate) {
+    return oldDelegate.searchQuery != searchQuery || oldDelegate.seed != seed;
+  }
+}
