@@ -1,4 +1,4 @@
-name: Mind Spark 
+name: Mind Spark Universal CI/CD
 
 on:
   push:
@@ -28,22 +28,14 @@ jobs:
           channel: 'stable'
           cache: true
 
+      - name: Generate Android Scaffolding & Gradle Files First
+        run: flutter create . --platforms=android
+
       - name: Accept Android SDK Licenses
         run: yes | flutter doctor --android-licenses || true
 
-      - name: Generate Native Android Scaffolding
-        run: flutter create . --platforms=android
-
       - name: Install Project Dependencies
         run: flutter pub get
-
-      - name: Verify Root Asset Placement
-        run: |
-          if [ -f "icon_launcher.png" ]; then
-            echo "Root asset icon_launcher.png verified."
-          else
-            echo "Warning: icon_launcher.png not found in root path."
-          fi
 
       - name: Run Code Analysis
         run: flutter analyze --no-fatal-infos
